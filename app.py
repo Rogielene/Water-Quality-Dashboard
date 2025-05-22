@@ -50,6 +50,25 @@ def set_fullscreen_background(image_path):
         </style>
         """, unsafe_allow_html=True)
 
+import streamlit as st
+
+def set_light_theme():
+    """Applies a light theme to the Streamlit app."""
+    st.markdown(
+        """
+        <style>
+            body {
+                background-color: white !important;
+                color: black !important;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+set_light_theme()
+
+
 # ----------------- Sidebar -----------------
 st.sidebar.title("Water Quality Analysis App")
 uploaded_file = st.sidebar.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"])
