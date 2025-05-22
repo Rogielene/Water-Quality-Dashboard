@@ -74,7 +74,7 @@ if uploaded_file is None:
 st.markdown("""
     <style>
     .stApp {
-        background-color: white !important;
+        background-color: #deeefa !important;
         background-image: none !important;
     }
     </style>
@@ -93,19 +93,19 @@ except Exception as e:
 # ----------------- Sections Placeholder -----------------
 if section == "Overview":
     st.header("📊 Overview")
-    st.write("Overview content goes here.")
+    st.write("The Overview section provides a comprehensive summary of the dataset, including a Dataset Overview, detailed Column Descriptions, and key Summary Statistics from the Data Preprocessing to ensure clear and concise Data Analysis.")
 
 elif section == "Exploratory Data Analysis":
     st.header("📈 Exploratory Data Analysis")
-    st.write("EDA content goes here.")
+    st.write("The Exploratory Data Analysis section uncovers patterns and relationships within the dataset. It includes Temporal Analysis to track temperature trends, a Correlation Heatmap to visualize variable connections, Parameter Relationships for deeper insights, Time-Series Analysis of key water quality factors, and specific data analysis such as Dissolved Oxygen Distribution across different sites.")
 
 elif section == "Predictive Analysis":
     st.header("🤖 Predictive Analysis")
-    st.write("Model prediction tools go here.")
+    st.write("The Predictive Analysis section uses deep learning models to forecast water quality trends. Users can set parameters like epoch, batch size, site selection, and frequency (weekly, monthly, yearly) for customized predictions.")
 
 elif section == "Water Quality Index":
     st.header("🌊 Water Quality Index")
-    st.write("WQI calculations go here.")
+    st.write("The Water Quality Index (WQI) section provides site-specific WQI calculations, allowing to select locations for assessment. This section also includes average WQI values across sites and generates recommendations based on the calculated WQI.")
 
 # Main app content after upload
 if uploaded_file is not None:
@@ -239,7 +239,7 @@ if uploaded_file is not None:
                     plt.tight_layout()
                     st.pyplot(plt)
 
-            st.write("EDA Complete! ✅")
+           
 
         elif section == "Predictive Analysis":
             st.header("Water Quality Prediction Using Deep Learning Models 🔮")
