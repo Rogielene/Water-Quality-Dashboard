@@ -64,24 +64,31 @@ section = st.sidebar.selectbox("Select Section", [
 ])
 
 # ----------------- If No File: Show Welcome Screen -----------------
-st.markdown(
-    """
-    <style>
-    /* Change page background */
-    .stApp {
-        background-color: #cce7ff;  /* light blue */
-    }
+if uploaded_file is None:
+    try:
+        set_fullscreen_background("water quality analysis.jpg")  # Use your image file here
+    except:
+        st.title("Welcome to Water Quality Analysis")
+        st.info("Please upload a dataset file from the sidebar to begin.")
+    st.stop()
+    st.markdown(
+        """
+        <style>
+        /* Change page background */
+        .stApp {
+            background-color: #cce7ff;  /* light blue */
+        }
 
-    /* Style all text inside the app */
-    .stText, .stMarkdown {
-        color: #000000;  /* dark black text */
-        font-weight: bold;
-        font-size: 18px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+        /* Style all text inside the app */
+        .stText, .stMarkdown {
+            color: #000000;  /* dark black text */
+            font-weight: bold;
+            font-size: 18px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ----------------- Read Uploaded File -----------------
 try:
