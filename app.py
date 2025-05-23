@@ -1,4 +1,3 @@
-from turtle import color
 from PIL import Image
 import pandas as pd
 import numpy as np
