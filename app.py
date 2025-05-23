@@ -1,3 +1,4 @@
+from turtle import color
 from PIL import Image
 import pandas as pd
 import numpy as np
@@ -50,27 +51,9 @@ def set_fullscreen_background(image_path):
         </style>
         """, unsafe_allow_html=True)
 
-import streamlit as st
-
-def set_light_theme():
-    """Applies a light theme to the Streamlit app."""
-    st.markdown(
-        """
-        <style>
-            body {
-                background-color: white !important;
-                color: black !important;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-
-set_light_theme()
-
 
 # ----------------- Sidebar -----------------
-st.sidebar.title("Water Quality Analysis App")
+st.sidebar.title("Taallytics: Taal Lake Water Quality Prediction Dashboard")
 uploaded_file = st.sidebar.file_uploader("Upload CSV or Excel", type=["csv", "xlsx", "xls"])
 
 section = st.sidebar.selectbox("Select Section", [
@@ -81,23 +64,24 @@ section = st.sidebar.selectbox("Select Section", [
 ])
 
 # ----------------- If No File: Show Welcome Screen -----------------
-if uploaded_file is None:
-    try:
-        set_fullscreen_background("water quality analysis.jpg")  # Use your image file here
-    except:
-        st.title("Welcome to Water Quality Analysis")
-        st.info("Please upload a dataset file from the sidebar to begin.")
-    st.stop()
-
-# ----------------- Reset to White Background After Upload -----------------
-st.markdown("""
+st.markdown(
+    """
     <style>
+    /* Change page background */
     .stApp {
-        background-color: #deeefa !important;
-        background-image: none !important;
+        background-color: #cce7ff;  /* light blue */
+    }
+
+    /* Style all text inside the app */
+    .stText, .stMarkdown {
+        color: #000000;  /* dark black text */
+        font-weight: bold;
+        font-size: 18px;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
 # ----------------- Read Uploaded File -----------------
 try:
@@ -196,6 +180,14 @@ if uploaded_file is not None:
             with st.expander("Summary Statistics"):
                 st.subheader("Summary Statistics 📊")
                 st.write(df.select_dtypes(include=['float', 'int']).describe())
+            st.subheader("Group Members")
+            st.write("""
+            - Eilwyn Lorenz P. Alimpolos
+            - Joriz Nathaniel O. Angue
+            - Jerryan Z. Cortez
+            - Rogielene Ann Mae A. Duman
+            - Vina Mikaela O. Ogalesco
+            """)
 
         elif section == "Exploratory Data Analysis":
             st.title("Exploratory Data Analysis")
@@ -258,7 +250,6 @@ if uploaded_file is not None:
                     plt.tight_layout()
                     st.pyplot(plt)
 
-           
 
         elif section == "Predictive Analysis":
             st.header("Water Quality Prediction Using Deep Learning Models 🔮")
@@ -289,21 +280,15 @@ if uploaded_file is not None:
             # Target selection
             all_possible_targets = ['pH', 'Ammonia', 'Nitrate', 'Phosphate', 'Dissolved Oxygen', 'Sulfide', 'Carbon Dioxide']
             available_targets = [col for col in all_possible_targets if col in df_filtered.columns]
-
-            target_cols = st.multiselect(
-                "Select water quality parameters to predict:",
+            target_col = st.selectbox(
+                "Select ONE water quality parameter to predict:",
                 options=available_targets,
-                default=[]
+                index=0  # Default to the first available option
             )
-
-            if not target_cols:
-                st.warning("⚠️ Please select at least one parameter to proceed.")
-                st.stop()
-
+            target_cols = [target_col]
             required_features = ['Surface temp', 'Middle temp', 'Bottom temp', 'Water Temperature', 'pH',
                                  'Ammonia', 'Nitrate', 'Phosphate', 'Dissolved Oxygen', 'Sulfide', 'Carbon Dioxide']
             water_cols = [col for col in required_features if col in df_filtered.columns]
-
             if len(water_cols) < len(required_features):
                 missing = set(required_features) - set(water_cols)
                 st.error(f"Missing input features: {', '.join(missing)}")
@@ -423,102 +408,91 @@ if uploaded_file is not None:
         elif section == "Water Quality Index":
             st.header("Water Quality Index (WQI) by Site 🌊")
 
+            required_params = ['pH', 'Ammonia', 'Nitrate', 'Phosphate', 'Dissolved Oxygen']
+            if not all(param in df.columns for param in required_params):
+                st.error("Missing required water quality parameters for WQI calculation.")
+                st.stop()
+
             if 'Site' not in df.columns:
-                st.error("No 'Site' column found in dataset for WQI calculation.")
+                st.error("Dataset must contain a 'Site' column to compute WQI.")
                 st.stop()
 
-            sites = sorted(df['Site'].dropna().unique().tolist())
-            selected_site = st.selectbox("Select Site for WQI calculation:", options=["All Sites"] + sites)
-
-            wqi_params = ['pH', 'Ammonia', 'Nitrate', 'Phosphate', 'Dissolved Oxygen']
-
-            if not all(param in df.columns for param in wqi_params):
-                st.error("Some required parameters for WQI calculation are missing.")
-                st.stop()
+            sites = sorted(df['Site'].dropna().unique())
+            selected_site = st.selectbox("Select Site for WQI", options=["All Sites"] + list(sites))
 
             def compute_wqi(row):
+                ideal_values = {'pH': 7, 'Ammonia': 0.5, 'Nitrate': 10, 'Phosphate': 0.1, 'Dissolved Oxygen': 6}
+                weights = {k: 0.2 for k in ideal_values}
+                wqi_score = 0
+
                 try:
-                    ideal = {
-                        'pH': 7,
-                        'Ammonia': 0.5,
-                        'Nitrate': 10,
-                        'Phosphate': 0.1,
-                        'Dissolved Oxygen': 6
-                    }
-                    weights = {
-                        'pH': 0.2,
-                        'Ammonia': 0.2,
-                        'Nitrate': 0.2,
-                        'Phosphate': 0.2,
-                        'Dissolved Oxygen': 0.2
-                    }
-                    q_scores = []
-                    for param in wqi_params:
-                        val = row[param]
-                        ideal_val = ideal[param]
+                    for param in required_params:
+                        actual = row[param]
+                        ideal = ideal_values[param]
                         if param == 'Dissolved Oxygen':
-                            qi = (val / ideal_val) * 100
+                            qi = (actual / ideal) * 100
                         else:
-                            qi = (ideal_val / (val + 1e-6)) * 100
+                            qi = (ideal / (actual + 1e-6)) * 100
                         qi = min(qi, 100)
-                        q_scores.append(qi * weights[param])
-                    return sum(q_scores)
-                except:
+                        wqi_score += qi * weights[param]
+                    return wqi_score
+                except Exception as e:
                     return np.nan
 
             if selected_site == "All Sites":
-                wqi_by_site = df.groupby('Site')[wqi_params].mean().dropna()
-                wqi_by_site['WQI'] = wqi_by_site.apply(compute_wqi, axis=1)
+                group_means = df.groupby("Site")[required_params].mean().dropna()
+                group_means["WQI"] = group_means.apply(compute_wqi, axis=1)
 
                 st.subheader("Average WQI by Site")
-                st.dataframe(wqi_by_site[['WQI']])
+                st.dataframe(group_means[["WQI"]])
 
                 fig, ax = plt.subplots(figsize=(12, 6))
-                sns.barplot(x=wqi_by_site.index, y=wqi_by_site['WQI'], palette='Blues_d')
-                plt.axhline(80, color='green', linestyle='--', label='Good Quality Threshold')
-                plt.axhline(50, color='orange', linestyle='--', label='Marginal Quality')
-                plt.axhline(30, color='red', linestyle='--', label='Poor Quality')
-                plt.title('Water Quality Index by Site')
-                plt.ylabel('WQI')
+                sns.barplot(x=group_means.index, y=group_means["WQI"], palette="Blues_d")
+                plt.axhline(80, color='green', linestyle='--', label='Good')
+                plt.axhline(50, color='orange', linestyle='--', label='Moderate')
+                plt.axhline(30, color='red', linestyle='--', label='Poor')
+                plt.title("WQI by Site")
+                plt.ylabel("WQI")
                 plt.xticks(rotation=45)
                 plt.legend()
                 st.pyplot(fig)
 
-                st.subheader("Recommendations Based on WQI")
-                for site, row in wqi_by_site.iterrows():
-                    score = row['WQI']
-                    if score >= 80:
-                        st.success(f"✅ *{site}*: Excellent water quality. Suitable for most uses.")
-                    elif score >= 50:
-                        st.warning(f"⚠️ *{site}*: Moderate water quality. May require treatment.")
+                st.subheader("Recommendations")
+                for site, row in group_means.iterrows():
+                    wqi_val = row['WQI']
+                    if wqi_val >= 80:
+                        st.success(f"✅ *{site}*: Excellent water quality.")
+                    elif wqi_val >= 50:
+                        st.warning(f"⚠️ *{site}*: Moderate water quality.")
                     else:
-                        st.error(f"🚫 *{site}*: Poor water quality. Likely unsuitable without remediation.")
-            else:
-                df_site = df[df['Site'] == selected_site].copy()
-                df_site.dropna(subset=wqi_params, inplace=True)
-                df_site['WQI'] = df_site.apply(compute_wqi, axis=1)
+                        st.error(f"🚫 *{site}*: Poor water quality.")
 
-                st.subheader(f"Water Quality Index Over Time – {selected_site}")
+            else:
+                site_df = df[df["Site"] == selected_site].copy()
+                site_df.dropna(subset=required_params, inplace=True)
+                site_df["WQI"] = site_df.apply(compute_wqi, axis=1)
+
+                st.subheader(f"WQI Over Time – {selected_site}")
                 plt.figure(figsize=(12, 5))
-                plt.plot(df_site['Date'], df_site['WQI'], marker='o')
-                plt.axhline(80, color='green', linestyle='--', label='Good Quality Threshold')
-                plt.axhline(50, color='orange', linestyle='--', label='Marginal Quality')
-                plt.axhline(30, color='red', linestyle='--', label='Poor Quality')
-                plt.title(f'WQI Over Time - {selected_site}')
-                plt.xlabel('Date')
-                plt.ylabel('WQI')
+                plt.plot(site_df["Date"], site_df["WQI"], marker='o')
+                plt.axhline(80, color='green', linestyle='--', label='Good')
+                plt.axhline(50, color='orange', linestyle='--', label='Moderate')
+                plt.axhline(30, color='red', linestyle='--', label='Poor')
+                plt.title(f"WQI Time Series – {selected_site}")
+                plt.xlabel("Date")
+                plt.ylabel("WQI")
                 plt.xticks(rotation=45)
                 plt.legend()
                 plt.tight_layout()
                 st.pyplot(plt)
 
-                avg_wqi = df_site['WQI'].mean()
+                avg_wqi = site_df["WQI"].mean()
                 st.metric("Average WQI", f"{avg_wqi:.2f}")
 
                 st.subheader("Recommendation")
                 if avg_wqi >= 80:
-                    st.success("✅ Excellent water quality. Continue monitoring and conservation.")
+                    st.success("✅ Excellent quality. Continue monitoring.")
                 elif avg_wqi >= 50:
-                    st.warning("⚠️ Moderate quality. Investigate potential sources of pollutants.")
+                    st.warning("⚠️ Moderate quality. Investigate pollution sources.")
                 else:
-                    st.error("🚫 Poor water quality. Immediate action and remediation recommended.")
+                    st.error("🚫 Poor quality. Remediation advised.")
