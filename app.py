@@ -589,8 +589,4 @@ if uploaded_file is not None:
                 elif avg_wqi >= 50:
                     st.warning("⚠️ Moderate quality. Investigate potential pollutants.")
                 else:
-<<<<<<< HEAD
-                    st.error("🚫 Poor quality. Remediation advised.")
-=======
                     st.error("🚫 Poor quality. Consider remediation steps.")
->>>>>>> be713c6 (Updated requirements.txt and Streamlit app)
