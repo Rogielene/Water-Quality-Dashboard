@@ -506,7 +506,8 @@ if uploaded_file is not None:
             sites = sorted(df['Site'].dropna().unique())
             selected_site = st.selectbox("Select Site for WQI", options=["All Sites"] + list(sites))
             wqi_freq = st.radio("Select WQI Frequency", ["Weekly", "Monthly", "Yearly"])
-            selected_params = st.multiselect("Select Parameters to Predict", options=required_params, default=required_params)
+
+            selected_param = st.selectbox("Select a Parameter to Visualize", options=required_params)
 
             def compute_wqi(row):
                 ideal_values = {'pH': 7, 'Ammonia': 0.5, 'Nitrate': 10, 'Phosphate': 0.1, 'Dissolved Oxygen': 6}
@@ -525,7 +526,8 @@ if uploaded_file is not None:
 
             def resample_df(df, freq_str):
                 df.set_index("Date", inplace=True)
-                resampled = df.resample(freq_str).mean().reset_index()
+                numeric_df = df.select_dtypes(include='number')
+                resampled = numeric_df.resample(freq_str).mean().reset_index()
                 df.reset_index(inplace=True)
                 return resampled
 
@@ -565,10 +567,11 @@ if uploaded_file is not None:
                 st.subheader(f"📈 WQI Time Series – {selected_site} ({wqi_freq})")
                 site_df = df[df["Site"] == selected_site].dropna(subset=required_params).copy()
                 site_df["WQI"] = site_df.apply(compute_wqi, axis=1)
-                resampled = resample_df(site_df, freq_str)
+                resampled = resample_df(site_df[['Date', 'WQI']], freq_str)
 
+                # WQI Line Chart
                 plt.figure(figsize=(12, 5))
-                plt.plot(resampled["Date"], resampled["WQI"], marker='o')
+                plt.plot(resampled["Date"], resampled["WQI"], marker='o', color='blue', label='WQI')
                 plt.axhline(80, color='green', linestyle='--', label='Good')
                 plt.axhline(50, color='orange', linestyle='--', label='Moderate')
                 plt.axhline(30, color='red', linestyle='--', label='Poor')
@@ -590,3 +593,17 @@ if uploaded_file is not None:
                     st.warning("⚠️ Moderate quality. Investigate potential pollutants.")
                 else:
                     st.error("🚫 Poor quality. Consider remediation steps.")
+
+                # Selected Parameter Trend Line Chart
+                st.subheader(f"📉 {selected_param} Trend – {selected_site} ({wqi_freq})")
+                param_df = site_df[['Date', selected_param]].dropna()
+                param_resampled = resample_df(param_df, freq_str)
+
+                plt.figure(figsize=(12, 5))
+                plt.plot(param_resampled["Date"], param_resampled[selected_param], marker='o', color='purple')
+                plt.title(f"{selected_param} Trend – {selected_site} ({wqi_freq})")
+                plt.xlabel("Date")
+                plt.ylabel(selected_param)
+                plt.xticks(rotation=45)
+                plt.tight_layout()
+                st.pyplot(plt)
