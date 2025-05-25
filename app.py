@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import seaborn as sns
 import matplotlib.pyplot as plt
+import plotly.express as px
 import streamlit as st
 from keras.models import Sequential
 from keras.layers import Conv1D, LSTM, Dense, Flatten, MaxPooling1D
@@ -203,21 +204,79 @@ if uploaded_file is not None:
 
         elif section == "Exploratory Data Analysis":
             st.title("Exploratory Data Analysis")
-            with st.expander("Temporal Analysis: Temperature Trends Over Time"):
-                st.subheader("Temperature Trends Over Time 📅")
-                plt.figure(figsize=(14, 6))
-                for temp_col in ['Surface temp', 'Middle temp', 'Bottom temp']:
-                    if temp_col in df.columns:
-                        plt.plot(df['Date'], df[temp_col], label=temp_col)
-                plt.title('Temperature Trends Over Time 🌡️')
-                plt.xlabel('Date')
-                plt.ylabel('Temperature')
-                plt.legend()
-                plt.grid(True, alpha=0.3)
-                plt.xticks(rotation=45)
-                plt.tight_layout()
-                st.pyplot(plt)
+            
+            with st.expander("Time Series Analysis 📈"):
+                st.subheader("Water Quality Trends Over Time")
+                
+                if not df.empty:
+                    time_col = next((col for col in df.columns if "date" in col.lower() or "time" in col.lower()), None)
 
+                    if time_col:
+                        df[time_col] = pd.to_datetime(df[time_col])
+
+                        # Get numeric columns and exclude 'year' and 'month'
+                        numeric_cols = df.select_dtypes(include='number').columns.tolist()
+                        numeric_cols = [col for col in numeric_cols if col.lower() not in ['year', 'month']]
+
+                        # Initialize session state
+                        if "time_series_selected_params" not in st.session_state:
+                            st.session_state.time_series_selected_params = []
+
+                        if "select_all_clicked" not in st.session_state:
+                            st.session_state.select_all_clicked = False
+
+                        st.markdown("#### Select Parameters to Plot")
+
+                        # Select All checkbox
+                        select_all = st.checkbox("Select All Parameters")
+
+                        # Handle Select All logic
+                        if select_all and not st.session_state.select_all_clicked:
+                            st.session_state.time_series_selected_params = numeric_cols
+                            st.session_state.select_all_clicked = True
+                        elif not select_all and st.session_state.select_all_clicked:
+                            st.session_state.time_series_selected_params = []
+                            st.session_state.select_all_clicked = False
+
+                        # Parameter multiselect
+                        selected_params = st.multiselect(
+                            "Choose parameters:",
+                            options=numeric_cols,
+                            default=st.session_state.time_series_selected_params
+                        )
+
+                        # Sync selected parameters
+                        st.session_state.time_series_selected_params = selected_params
+
+                        # Plot if parameters selected
+                        if selected_params:
+                            fig = px.line(
+                                df,
+                                x=time_col,
+                                y=selected_params,
+                                labels={"value": "Measurement", "variable": "Parameter"},
+                                template="simple_white"
+                            )
+
+                            fig.update_traces(mode="lines", line=dict(width=2))
+                            fig.update_layout(
+                                title="Water Quality Trends Over Time",
+                                title_font=dict(size=18),
+                                legend_title="Parameters",
+                                height=450,
+                                margin=dict(t=40, l=20, r=20, b=40),
+                                xaxis_title="Date",
+                                yaxis_title="",
+                                font=dict(family="Segoe UI, sans-serif", size=13),
+                                hovermode="x unified"
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("Please select at least one parameter to generate the plot.")
+                    else:
+                        st.warning("⚠️ No date/time column detected in the dataset.")
+                        
             with st.expander("Correlation Heatmap 🔥"):
                 st.subheader("Feature Correlation Heatmap 🔍")
                 corr_matrix = df[numeric_cols].corr()
@@ -227,51 +286,75 @@ if uploaded_file is not None:
                 plt.tight_layout()
                 st.pyplot(plt)
 
-            with st.expander("Parameter Relationships 🤝"):
-                st.subheader("Air vs Surface Temperature and Surface Temp vs Dissolved Oxygen 🌬️")
-                fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-                if 'Air Temperature (0C)' in df.columns and 'Surface temp' in df.columns:
-                    sns.scatterplot(x='Air Temperature (0C)', y='Surface temp', data=df, ax=axes[0])
-                axes[0].set_title('Air vs Surface Temperature')
-                if 'Surface temp' in df.columns and 'Dissolved Oxygen' in df.columns:
-                    sns.scatterplot(x='Surface temp', y='Dissolved Oxygen', data=df, ax=axes[1])
-                axes[1].set_title('Surface Temp vs Dissolved Oxygen')
-                plt.tight_layout()
-                st.pyplot(fig)
+            with st.expander("📊 Parameter Relationships"):
+                st.subheader("Analyze Relationships Between Water Quality Parameters")
 
-            with st.expander("Time-Series of Key Water Quality Parameters 📈"):
-                st.subheader("Time-Series of Key Water Quality Parameters")
-                fig, axes = plt.subplots(4, 2, figsize=(15, 12))
-                axes = axes.flatten()  # Flatten to 1D for easy indexing
-                params = ['Dissolved Oxygen', 'pH', 'Ammonia', 'Nitrate', 'Nitrite', 'Phosphate', 'Carbon Dioxide']
-                missing_or_flat = []
-                for i, param in enumerate(params):
-                    if param in df.columns:
-                        series = df[param].dropna()
-                        if not series.empty and series.nunique() > 1:
-                            ax = axes[i]
-                            ax.plot(df['Date'], df[param])
-                            ax.set_title(param)
-                            ax.tick_params(axis='x', rotation=45)
+                if not df.empty:
+                    # Define the specific parameters of interest
+                    selected_parameters = ["pH", "Ammonia", "Nitrate", "Phosphate", "Dissolved Oxygen", "Sulfide", "Carbon Dioxide"]
+
+                    # Filter only those that exist in the dataset
+                    valid_params = [p for p in selected_parameters if p in df.columns]
+
+                    if len(valid_params) < 2:
+                        st.warning("Not enough valid parameters found in the dataset.")
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            x = st.selectbox("X-axis Parameter", options=valid_params, index=None, placeholder="Please choose", key="x_axis_rel")
+                        with col2:
+                            # Filter out selected X from Y options
+                            y_options = [p for p in valid_params if p != x] if x else valid_params
+                            y = st.selectbox("Y-axis Parameter", options=y_options, index=None, placeholder="Please choose", key="y_axis_rel")
+
+                        if x and y:
+                            # Create an interactive scatter plot with Plotly
+                            fig = px.scatter(df, x=x, y=y, title=f"Relationship between {x} and {y}",
+                                            labels={x: x, y: y},
+                                            hover_data={x: True, y: True, 'index': df.index},
+                                            template='plotly_white')
+
+                            # Compute and display correlation
+                            correlation = df[[x, y]].corr().iloc[0, 1]
+
+                            # Add correlation as a text annotation
+                            fig.add_annotation(
+                                text=f"Correlation: {correlation:.2f}",
+                                xref="paper", yref="paper",
+                                x=0.5, y=-0.1,
+                                showarrow=False,
+                                font=dict(size=14)
+                            )
+
+                            # Display the plot
+                            st.plotly_chart(fig, use_container_width=True)
                         else:
-                            axes[i].axis('off')
-                            missing_or_flat.append(param)
+                            st.info("Please choose both X and Y parameters to view the relationship.")
 
-                if missing_or_flat:
-                    st.warning(f"These parameters were skipped due to missing or flat data: {', '.join(missing_or_flat)}")
 
-                plt.tight_layout()
-                st.pyplot(fig)
+            with st.expander("📉 Box Plot Analysis"):
+                st.subheader("Visualizing Parameter Distributions")
 
-            with st.expander("Dissolved Oxygen Distribution by Site 🏞️"):
-                st.subheader("Dissolved Oxygen Levels by Site 🌿")
-                if 'Site' in df.columns:
-                    plt.figure(figsize=(12, 6))
-                    sns.boxplot(x='Site', y='Dissolved Oxygen', data=df)
-                    plt.title('Dissolved Oxygen Levels by Site')
-                    plt.xticks(rotation=45)
-                    plt.tight_layout()
-                    st.pyplot(plt)
+                if not df.empty:
+                    selected_parameters = ["pH", "Ammonia", "Nitrate", "Phosphate", "Dissolved Oxygen", "Sulfide", "Carbon Dioxide"]
+                    valid_params = [p for p in selected_parameters if p in df.columns]
+
+                    if len(valid_params) < 1:
+                        st.warning("Not enough valid parameters found in the dataset.")
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            parameter = st.selectbox("Select Parameter", options=valid_params, index=None, placeholder="Please choose", key="box_param")
+                        with col2:
+                            site_options = df['Site'].unique() if 'Site' in df.columns else []
+
+                        if parameter:
+                            fig = px.box(df, x="Site", y=parameter, title=f"Box Plot of {parameter} Across Sites", labels={"Site": "Sampling Sites", parameter: parameter}, template="plotly_white")
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("Please select a parameter to view its distribution.")
+                else:
+                    st.warning("Dataset is empty.")
 
 
         elif section == "Predictive Analysis":
