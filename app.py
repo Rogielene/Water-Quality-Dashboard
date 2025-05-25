@@ -490,79 +490,89 @@ if uploaded_file is not None:
             plt.close()
 
         elif section == "Water Quality Index":
-            st.header("Water Quality Index (WQI) by Site 🌊")
+            st.header("🌊 Water Quality Index (WQI) by Site")
 
             required_params = ['pH', 'Ammonia', 'Nitrate', 'Phosphate', 'Dissolved Oxygen']
             if not all(param in df.columns for param in required_params):
                 st.error("Missing required water quality parameters for WQI calculation.")
                 st.stop()
 
-            if 'Site' not in df.columns:
-                st.error("Dataset must contain a 'Site' column to compute WQI.")
+            if 'Site' not in df.columns or 'Date' not in df.columns:
+                st.error("Dataset must contain 'Site' and 'Date' columns.")
                 st.stop()
+
+            df['Date'] = pd.to_datetime(df['Date'])
 
             sites = sorted(df['Site'].dropna().unique())
             selected_site = st.selectbox("Select Site for WQI", options=["All Sites"] + list(sites))
+            wqi_freq = st.radio("Select WQI Frequency", ["Weekly", "Monthly", "Yearly"])
+            selected_params = st.multiselect("Select Parameters to Predict", options=required_params, default=required_params)
 
             def compute_wqi(row):
                 ideal_values = {'pH': 7, 'Ammonia': 0.5, 'Nitrate': 10, 'Phosphate': 0.1, 'Dissolved Oxygen': 6}
                 weights = {k: 0.2 for k in ideal_values}
                 wqi_score = 0
+                for param in required_params:
+                    actual = row[param]
+                    ideal = ideal_values[param]
+                    if param == 'Dissolved Oxygen':
+                        qi = (actual / ideal) * 100
+                    else:
+                        qi = (ideal / (actual + 1e-6)) * 100
+                    qi = min(qi, 100)
+                    wqi_score += qi * weights[param]
+                return wqi_score
 
-                try:
-                    for param in required_params:
-                        actual = row[param]
-                        ideal = ideal_values[param]
-                        if param == 'Dissolved Oxygen':
-                            qi = (actual / ideal) * 100
-                        else:
-                            qi = (ideal / (actual + 1e-6)) * 100
-                        qi = min(qi, 100)
-                        wqi_score += qi * weights[param]
-                    return wqi_score
-                except Exception as e:
-                    return np.nan
+            def resample_df(df, freq_str):
+                df.set_index("Date", inplace=True)
+                resampled = df.resample(freq_str).mean().reset_index()
+                df.reset_index(inplace=True)
+                return resampled
+
+            freq_map = {"Weekly": "W", "Monthly": "M", "Yearly": "Y"}
+            freq_str = freq_map[wqi_freq]
 
             if selected_site == "All Sites":
-                group_means = df.groupby("Site")[required_params].mean().dropna()
-                group_means["WQI"] = group_means.apply(compute_wqi, axis=1)
+                st.subheader(f"📊 Average WQI by Site ({wqi_freq})")
 
-                st.subheader("Average WQI by Site")
-                st.dataframe(group_means[["WQI"]])
+                site_group = df.dropna(subset=required_params).copy()
+                site_group["WQI"] = site_group.apply(compute_wqi, axis=1)
+                site_group = resample_df(site_group, freq_str)
+                avg_wqi_by_site = site_group.groupby("Site")["WQI"].mean().dropna()
+                st.dataframe(avg_wqi_by_site)
 
                 fig, ax = plt.subplots(figsize=(12, 6))
-                sns.barplot(x=group_means.index, y=group_means["WQI"], palette="Blues_d")
+                sns.barplot(x=avg_wqi_by_site.index, y=avg_wqi_by_site.values, palette="Blues_d")
                 plt.axhline(80, color='green', linestyle='--', label='Good')
                 plt.axhline(50, color='orange', linestyle='--', label='Moderate')
                 plt.axhline(30, color='red', linestyle='--', label='Poor')
-                plt.title("WQI by Site")
+                plt.title(f"Average WQI by Site ({wqi_freq})")
                 plt.ylabel("WQI")
                 plt.xticks(rotation=45)
                 plt.legend()
                 st.pyplot(fig)
 
-                st.subheader("Recommendations")
-                for site, row in group_means.iterrows():
-                    wqi_val = row['WQI']
-                    if wqi_val >= 80:
-                        st.success(f"✅ *{site}*: Excellent water quality.")
-                    elif wqi_val >= 50:
-                        st.warning(f"⚠️ *{site}*: Moderate water quality.")
+                st.subheader("📌 Recommendations")
+                for site, val in avg_wqi_by_site.items():
+                    if val >= 80:
+                        st.success(f"✅ {site}: Excellent quality")
+                    elif val >= 50:
+                        st.warning(f"⚠️ {site}: Moderate quality")
                     else:
-                        st.error(f"🚫 *{site}*: Poor water quality.")
+                        st.error(f"🚫 {site}: Poor quality")
 
             else:
-                site_df = df[df["Site"] == selected_site].copy()
-                site_df.dropna(subset=required_params, inplace=True)
+                st.subheader(f"📈 WQI Time Series – {selected_site} ({wqi_freq})")
+                site_df = df[df["Site"] == selected_site].dropna(subset=required_params).copy()
                 site_df["WQI"] = site_df.apply(compute_wqi, axis=1)
+                resampled = resample_df(site_df, freq_str)
 
-                st.subheader(f"WQI Over Time – {selected_site}")
                 plt.figure(figsize=(12, 5))
-                plt.plot(site_df["Date"], site_df["WQI"], marker='o')
+                plt.plot(resampled["Date"], resampled["WQI"], marker='o')
                 plt.axhline(80, color='green', linestyle='--', label='Good')
                 plt.axhline(50, color='orange', linestyle='--', label='Moderate')
                 plt.axhline(30, color='red', linestyle='--', label='Poor')
-                plt.title(f"WQI Time Series – {selected_site}")
+                plt.title(f"WQI Trend – {selected_site} ({wqi_freq})")
                 plt.xlabel("Date")
                 plt.ylabel("WQI")
                 plt.xticks(rotation=45)
@@ -570,13 +580,17 @@ if uploaded_file is not None:
                 plt.tight_layout()
                 st.pyplot(plt)
 
-                avg_wqi = site_df["WQI"].mean()
+                avg_wqi = resampled["WQI"].mean()
                 st.metric("Average WQI", f"{avg_wqi:.2f}")
 
-                st.subheader("Recommendation")
+                st.subheader("📌 Recommendation")
                 if avg_wqi >= 80:
-                    st.success("✅ Excellent quality. Continue monitoring.")
+                    st.success("✅ Excellent water quality. Continue monitoring.")
                 elif avg_wqi >= 50:
-                    st.warning("⚠️ Moderate quality. Investigate pollution sources.")
+                    st.warning("⚠️ Moderate quality. Investigate potential pollutants.")
                 else:
+<<<<<<< HEAD
                     st.error("🚫 Poor quality. Remediation advised.")
+=======
+                    st.error("🚫 Poor quality. Consider remediation steps.")
+>>>>>>> be713c6 (Updated requirements.txt and Streamlit app)
